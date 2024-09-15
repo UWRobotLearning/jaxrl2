@@ -5,7 +5,7 @@
 
 ### SAC
 ```bash
-python train_online.py --env_name=HalfCheetah-v2
+MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false python train_online.py --env_name=HalfCheetah-v4
 ```
 
 ## Pixels
