@@ -45,10 +45,13 @@ def _unpack(batch):
 
 def _share_encoder(source, target):
     # Use critic conv layers in actor:
-    new_params = target.params.copy(
-        add_or_replace={"encoder": source.params["encoder"]}
-    )
-    return target.replace(params=new_params)
+    # new_params = target.params.copy(
+    #     add_or_replace={"encoder": source.params["encoder"]}
+    # ) 
+    # # return target.replace(params=new_params) ## TODO: Check how this is done in newre versions of jaxrl 
+    target.params["encoder"] = source.params["encoder"].copy()
+    return target
+    
 
 
 @functools.partial(jax.jit, static_argnames=("backup_entropy", "critic_reduction"))

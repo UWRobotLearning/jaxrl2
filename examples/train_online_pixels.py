@@ -2,17 +2,17 @@
 import os
 import pickle
 
-import gym
+import gymnasium as gym
+from gymnasium.envs.registration import registry
 import tqdm
 import wandb
 from absl import app, flags
 from ml_collections import config_flags
 
-import jaxrl2.extra_envs.dm_control_suite
 from jaxrl2.agents import DrQLearner
 from jaxrl2.data import MemoryEfficientReplayBuffer
 from jaxrl2.evaluation import evaluate
-from jaxrl2.wrappers import wrap_pixels
+from jaxrl2.wrappers import wrap_pixels, set_universal_seed
 
 FLAGS = flags.FLAGS
 
@@ -54,6 +54,19 @@ PLANET_ACTION_REPEAT = {
     "walker-walk-v0": 2,
 }
 
+def check_env_id(env_id):
+    dm_control_env_ids = [
+        id
+        for id in registry
+        if id.startswith("dm_control/") and id != "dm_control/compatibility-env-v0"
+    ]
+    if not env_id.startswith("dm_control/"):
+        for id in dm_control_env_ids:
+            if env_id in id:
+                env_id = "dm_control/" + env_id
+    if env_id not in registry:
+        raise ValueError("Provide valid env id.")
+    return env_id
 
 def main(_):
     wandb.init(project="jaxrl2_online_pixels")
@@ -63,12 +76,22 @@ def main(_):
         action_repeat = FLAGS.action_repeat
     else:
         action_repeat = PLANET_ACTION_REPEAT.get(FLAGS.env_name, 2)
+    
+    def make_and_wrap_env(env_id):
+        env_id = check_env_id(env_id)
 
-    def wrap(env):
-        if "quadruped" in FLAGS.env_name:
+        if "quadruped" in env_id:
             camera_id = 2
         else:
             camera_id = 0
+
+        render_kwargs = dict(camera_id=camera_id, height=FLAGS.image_size, width=FLAGS.image_size)
+        if env_id.startswith("dm_control"):
+            env = gym.make(env_id, render_mode="rgb_array", render_kwargs=render_kwargs)
+        else:
+            render_kwargs.pop("camera_id")
+            env = gym.make(env_id, render_mode="rgb_array", **render_kwargs)
+
         return wrap_pixels(
             env,
             action_repeat=action_repeat,
@@ -77,14 +100,12 @@ def main(_):
             camera_id=camera_id,
         )
 
-    env = gym.make(FLAGS.env_name)
-    env = wrap(env)
+    env = make_and_wrap_env(FLAGS.env_name)
     env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
-    env.seed(FLAGS.seed)
+    set_universal_seed(env, FLAGS.seed)
 
-    eval_env = gym.make(FLAGS.env_name)
-    eval_env = wrap(eval_env)
-    eval_env.seed(FLAGS.seed + 42)
+    eval_env = make_and_wrap_env(FLAGS.env_name)
+    set_universal_seed(eval_env, FLAGS.seed + 42)
 
     kwargs = dict(FLAGS.config)
     agent = DrQLearner(
@@ -99,7 +120,8 @@ def main(_):
         sample_args={"batch_size": FLAGS.batch_size, "include_pixels": False}
     )
 
-    observation, done = env.reset(), False
+    observation, _ = env.reset()
+    done = False
     for i in tqdm.tqdm(
         range(1, FLAGS.max_steps // action_repeat + 1),
         smoothing=0.1,
@@ -109,9 +131,10 @@ def main(_):
             action = env.action_space.sample()
         else:
             action = agent.sample_actions(observation)
-        next_observation, reward, done, info = env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
 
-        if not done or "TimeLimit.truncated" in info:
+        if not terminated:
             mask = 1.0
         else:
             mask = 0.0
@@ -129,7 +152,8 @@ def main(_):
         observation = next_observation
 
         if done:
-            observation, done = env.reset(), False
+            observation, _ = env.reset()
+            done = False
             for k, v in info["episode"].items():
                 decode = {"r": "return", "l": "length", "t": "time"}
                 wandb.log({f"training/{decode[k]}": v}, step=i * action_repeat)

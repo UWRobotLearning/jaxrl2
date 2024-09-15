@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-import gym
+raise RuntimeError("Untested and currently incompatible")
+import gymnasium as gym
 import jax
 import tqdm
 import wandb
@@ -9,7 +10,7 @@ from ml_collections import config_flags
 from jaxrl2.agents import BCLearner, IQLLearner
 from jaxrl2.data import D4RLDataset
 from jaxrl2.evaluation import evaluate
-from jaxrl2.wrappers import wrap_gym
+from jaxrl2.wrappers import wrap_gym, set_universal_seed
 
 FLAGS = flags.FLAGS
 
@@ -39,7 +40,7 @@ def main(_):
 
     env = gym.make(FLAGS.env_name)
     env = wrap_gym(env)
-    env.seed(FLAGS.seed)
+    set_universal_seed(env, FLAGS.seed)
 
     dataset = D4RLDataset(env)
     if FLAGS.filter_percentile is not None or FLAGS.filter_threshold is not None:

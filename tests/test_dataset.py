@@ -1,9 +1,8 @@
-import gym
+import gymnasium as gym
 import numpy as np
 import pytest
 
 from jaxrl2.data import Dataset
-from jaxrl2.data.d4rl_dataset import D4RLDataset
 
 DATASET_LEN = 10
 DATASET_DICT = {
@@ -58,14 +57,6 @@ def test_sample_keys():
     dataset = Dataset(DATASET_DICT)
     batch = dataset.sample(BATCH_SIZE, keys=KEYS)
     assert list(batch.keys()) == KEYS
-
-
-def test_d4rl_dataset():
-    env = gym.make("halfcheetah-expert-v2")
-    dataset = D4RLDataset(env)
-
-    batch = dataset.sample(BATCH_SIZE)
-
 
 def test_split():
     dataset = Dataset(DATASET_DICT)

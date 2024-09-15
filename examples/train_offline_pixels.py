@@ -1,17 +1,17 @@
 #! /usr/bin/env python
+raise RuntimeError("Untested and currently incompatible")
 import os
 import pickle
 
-import gym
+import gymnasium as gym
 import tqdm
 import wandb
 from absl import app, flags
 from ml_collections import config_flags
 
-import jaxrl2.extra_envs.dm_control_suite
 from jaxrl2.agents import PixelBCLearner, PixelIQLLearner
 from jaxrl2.evaluation import evaluate
-from jaxrl2.wrappers import wrap_pixels
+from jaxrl2.wrappers import wrap_pixels, set_universal_seed
 
 FLAGS = flags.FLAGS
 
@@ -78,11 +78,11 @@ def main(_):
     env = gym.make(FLAGS.env_name)
     env = wrap(env)
     env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
-    env.seed(FLAGS.seed)
+    set_universal_seed(env, FLAGS.seed)
 
     eval_env = gym.make(FLAGS.env_name)
     eval_env = wrap(eval_env)
-    eval_env.seed(FLAGS.seed + 42)
+    set_universal_seed(eval_env, FLAGS.seed + 42)
 
     kwargs = dict(FLAGS.config.model_config)
     if kwargs.pop("cosine_decay", False):
